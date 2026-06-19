@@ -1,7 +1,9 @@
 package com.idltd.ssdopenwithpwa
 
 import android.content.Context
+import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 
 data class Destination(
     val type: String,
@@ -29,11 +31,50 @@ data class DispatcherConfig(
         }
     }
 
+    fun toJson(): JSONObject = JSONObject().apply {
+        put("version", version)
+        put("routes", JSONArray().also { arr ->
+            routes.forEach { route ->
+                arr.put(JSONObject().apply {
+                    put("extensions", JSONArray(route.extensions))
+                    put("mime_types", JSONArray(route.mimeTypes))
+                    put("destination", JSONObject().apply {
+                        put("type",  route.destination.type)
+                        put("url",   route.destination.url)
+                        put("param", route.destination.param)
+                    })
+                })
+            }
+        })
+    }
+
     companion object {
+        private const val USER_CONFIG = "user-config.json"
+
         fun load(context: Context): DispatcherConfig {
-            val json = context.assets.open("dispatcher-config.json")
-                .bufferedReader().readText()
-            return parse(JSONObject(json))
+            val bundled = parse(JSONObject(
+                context.assets.open("dispatcher-config.json").bufferedReader().readText()
+            ))
+            val userFile = File(context.filesDir, USER_CONFIG)
+            if (!userFile.exists()) return bundled
+            val user = parse(JSONObject(userFile.readText()))
+            // User routes override bundled routes for matching extensions; extras appended.
+            val userExts = user.routes.flatMap { it.extensions }.map { it.lowercase() }.toSet()
+            val merged = user.routes + bundled.routes.filter { r ->
+                r.extensions.none { it.lowercase() in userExts }
+            }
+            return DispatcherConfig(version = bundled.version, routes = merged)
+        }
+
+        fun saveUserConfig(context: Context, routes: List<Route>) {
+            val cfg = DispatcherConfig(version = 1, routes = routes)
+            File(context.filesDir, USER_CONFIG).writeText(cfg.toJson().toString(2))
+        }
+
+        fun loadUserRoutes(context: Context): MutableList<Route> {
+            val userFile = File(context.filesDir, USER_CONFIG)
+            if (!userFile.exists()) return mutableListOf()
+            return parse(JSONObject(userFile.readText())).routes.toMutableList()
         }
 
         private fun parse(root: JSONObject): DispatcherConfig {

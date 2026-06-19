@@ -9,7 +9,7 @@
         <activity
             android:name=".MainActivity"
             android:label="@string/app_name"
-            android:theme="@android:style/Theme.NoDisplay"
+            android:theme="@style/Theme.Dispatcher"
             android:exported="true"
             android:noHistory="true"
             android:excludeFromRecents="true">
@@ -23,7 +23,7 @@
 
             <!-- Generic binary fallback: catches .ssd from file managers that use octet-stream.
                  Extension is checked in code; non-routable files finish silently. -->
-            <intent-filter android:priority="-1">
+            <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="content" android:mimeType="application/octet-stream" />
@@ -36,6 +36,17 @@
                 <data android:scheme="file" android:mimeType="*/*" />
             </intent-filter>
 
+        </activity>
+
+        <activity
+            android:name=".ConfigActivity"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.AppCompat.Light"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
         </activity>
 
     </application>
