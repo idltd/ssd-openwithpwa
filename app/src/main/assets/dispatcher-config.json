@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "routes": [
+    {
+      "extensions": [".ssd"],
+      "mime_types": ["application/ssd"],
+      "destination": {
+        "type": "url_param",
+        "url": "https://idltd.github.io/SignedSealedDelivered/",
+        "param": "ssd"
+      }
+    }
+  ]
+}

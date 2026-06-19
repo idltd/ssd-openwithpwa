@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:label="@string/app_name"
+        android:icon="@android:drawable/ic_menu_upload"
+        android:allowBackup="false">
+
+        <activity
+            android:name=".MainActivity"
+            android:label="@string/app_name"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:exported="true"
+            android:noHistory="true"
+            android:excludeFromRecents="true">
+
+            <!-- Specific MIME type for .ssd files (preferred — avoids false positives) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:mimeType="application/ssd" />
+            </intent-filter>
+
+            <!-- Generic binary fallback: catches .ssd from file managers that use octet-stream.
+                 Extension is checked in code; non-routable files finish silently. -->
+            <intent-filter android:priority="-1">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:mimeType="application/octet-stream" />
+            </intent-filter>
+
+            <!-- file:// URIs (legacy file managers) -->
+            <intent-filter android:priority="-1">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="file" android:mimeType="*/*" />
+            </intent-filter>
+
+        </activity>
+
+    </application>
+
+</manifest>
