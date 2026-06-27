@@ -83,8 +83,8 @@ class ConfigActivity : AppCompatActivity() {
         val nativeApps = all.filter { !browserPkgs.contains(it.activityInfo.packageName) }
 
         return listOf("Default" to null) +
-            browsers.map  { it.loadLabel(packageManager).toString()         to it.activityInfo.packageName } +
-            nativeApps.map { "App: ${it.loadLabel(packageManager)}"         to it.activityInfo.packageName }
+            nativeApps.map { "App: ${it.loadLabel(packageManager)}"         to it.activityInfo.packageName } +
+            browsers.map   { it.loadLabel(packageManager).toString()        to it.activityInfo.packageName }
     }
 
     private fun showEditDialog(position: Int?) {
