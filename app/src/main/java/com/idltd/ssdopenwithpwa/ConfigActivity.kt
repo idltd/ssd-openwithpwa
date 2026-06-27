@@ -66,20 +66,29 @@ class ConfigActivity : AppCompatActivity() {
         setContentView(root)
     }
 
-    private fun getInstalledBrowsers(): List<Pair<String, String?>> {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("http://"))
-        val infos = packageManager.queryIntentActivities(intent, PackageManager.MATCH_ALL)
-        val browsers = infos
+    private fun getAppsForUrl(url: String): List<Pair<String, String?>> {
+        val uri = try { Uri.parse(url.trim()) } catch (e: Exception) { return listOf("Default" to null) }
+
+        val browserPkgs = packageManager
+            .queryIntentActivities(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.example.com")), PackageManager.MATCH_ALL)
+            .map { it.activityInfo.packageName }.toSet()
+
+        val all = packageManager
+            .queryIntentActivities(Intent(Intent.ACTION_VIEW, uri), PackageManager.MATCH_ALL)
             .filter { it.activityInfo.packageName != packageName }
-            .map { it.loadLabel(packageManager).toString() to it.activityInfo.packageName }
-            .distinctBy { it.second }
-            .sortedBy { it.first }
-        return listOf("Default browser" to null) + browsers
+            .distinctBy { it.activityInfo.packageName }
+            .sortedBy { it.loadLabel(packageManager).toString() }
+
+        val browsers  = all.filter {  browserPkgs.contains(it.activityInfo.packageName) }
+        val nativeApps = all.filter { !browserPkgs.contains(it.activityInfo.packageName) }
+
+        return listOf("Default" to null) +
+            browsers.map  { it.loadLabel(packageManager).toString()         to it.activityInfo.packageName } +
+            nativeApps.map { "App: ${it.loadLabel(packageManager)}"         to it.activityInfo.packageName }
     }
 
     private fun showEditDialog(position: Int?) {
         val existing = position?.let { userRoutes[it] }
-        val browsers = getInstalledBrowsers()
 
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -97,19 +106,30 @@ class ConfigActivity : AppCompatActivity() {
                         android.text.InputType.TYPE_TEXT_VARIATION_URI
         }
 
-        val browserSpinner = Spinner(this)
-        val browserLabels = browsers.map { it.first }
-        browserSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, browserLabels)
+        var apps = getAppsForUrl(existing?.destination?.url ?: "")
+        val spinnerAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, apps.map { it.first }.toMutableList())
+        val appSpinner = Spinner(this).apply { adapter = spinnerAdapter }
         val existingPkg = existing?.destination?.browser
-        val selectedIndex = browsers.indexOfFirst { it.second == existingPkg }.takeIf { it >= 0 } ?: 0
-        browserSpinner.setSelection(selectedIndex)
+        appSpinner.setSelection(apps.indexOfFirst { it.second == existingPkg }.takeIf { it >= 0 } ?: 0)
+
+        val refreshBtn = Button(this).apply {
+            text = "Find apps for this URL"
+            setOnClickListener {
+                apps = getAppsForUrl(urlInput.text.toString())
+                spinnerAdapter.clear()
+                spinnerAdapter.addAll(apps.map { it.first })
+                spinnerAdapter.notifyDataSetChanged()
+                appSpinner.setSelection(0)
+            }
+        }
 
         layout.addView(label("Extension"))
         layout.addView(extInput)
         layout.addView(label("PWA URL"))
         layout.addView(urlInput)
-        layout.addView(label("Open with browser"))
-        layout.addView(browserSpinner)
+        layout.addView(refreshBtn)
+        layout.addView(label("Open with"))
+        layout.addView(appSpinner)
 
         AlertDialog.Builder(this)
             .setTitle(if (existing == null) "Add route" else "Edit route")
@@ -123,11 +143,11 @@ class ConfigActivity : AppCompatActivity() {
                     Toast.makeText(this, "Extension and URL are required", Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
-                val selectedBrowser = browsers[browserSpinner.selectedItemPosition].second
+                val selectedApp = apps[appSpinner.selectedItemPosition].second
                 val route = Route(
                     extensions  = listOf(ext),
                     mimeTypes   = listOf("application/octet-stream"),
-                    destination = Destination(type = "url_param", url = url, param = "ssd", browser = selectedBrowser)
+                    destination = Destination(type = "url_param", url = url, param = "ssd", browser = selectedApp)
                 )
                 if (position != null) userRoutes[position] = route else userRoutes.add(route)
                 save()
