@@ -8,7 +8,8 @@ import java.io.File
 data class Destination(
     val type: String,
     val url: String,
-    val param: String
+    val param: String,
+    val browser: String? = null
 )
 
 data class Route(
@@ -42,6 +43,7 @@ data class DispatcherConfig(
                         put("type",  route.destination.type)
                         put("url",   route.destination.url)
                         put("param", route.destination.param)
+                        route.destination.browser?.let { put("browser", it) }
                     })
                 })
             }
@@ -52,18 +54,17 @@ data class DispatcherConfig(
         private const val USER_CONFIG = "user-config.json"
 
         fun load(context: Context): DispatcherConfig {
-            val bundled = parse(JSONObject(
-                context.assets.open("dispatcher-config.json").bufferedReader().readText()
-            ))
             val userFile = File(context.filesDir, USER_CONFIG)
-            if (!userFile.exists()) return bundled
-            val user = parse(JSONObject(userFile.readText()))
-            // User routes override bundled routes for matching extensions; extras appended.
-            val userExts = user.routes.flatMap { it.extensions }.map { it.lowercase() }.toSet()
-            val merged = user.routes + bundled.routes.filter { r ->
-                r.extensions.none { it.lowercase() in userExts }
+            if (userFile.exists()) return parse(JSONObject(userFile.readText()))
+            return parseBundled(context)
+        }
+
+        fun initIfNeeded(context: Context) {
+            val userFile = File(context.filesDir, USER_CONFIG)
+            if (!userFile.exists()) {
+                val bundled = parseBundled(context)
+                userFile.writeText(bundled.toJson().toString(2))
             }
-            return DispatcherConfig(version = bundled.version, routes = merged)
         }
 
         fun saveUserConfig(context: Context, routes: List<Route>) {
@@ -72,10 +73,13 @@ data class DispatcherConfig(
         }
 
         fun loadUserRoutes(context: Context): MutableList<Route> {
-            val userFile = File(context.filesDir, USER_CONFIG)
-            if (!userFile.exists()) return mutableListOf()
-            return parse(JSONObject(userFile.readText())).routes.toMutableList()
+            initIfNeeded(context)
+            return load(context).routes.toMutableList()
         }
+
+        private fun parseBundled(context: Context) = parse(JSONObject(
+            context.assets.open("dispatcher-config.json").bufferedReader().readText()
+        ))
 
         private fun parse(root: JSONObject): DispatcherConfig {
             val routesArr = root.getJSONArray("routes")
@@ -88,9 +92,10 @@ data class DispatcherConfig(
                     extensions = (0 until exts.length()).map  { exts.getString(it) },
                     mimeTypes  = (0 until mimes.length()).map { mimes.getString(it) },
                     destination = Destination(
-                        type  = dest.getString("type"),
-                        url   = dest.getString("url"),
-                        param = dest.getString("param")
+                        type    = dest.getString("type"),
+                        url     = dest.getString("url"),
+                        param   = dest.getString("param"),
+                        browser = if (dest.has("browser")) dest.getString("browser") else null
                     )
                 )
             }

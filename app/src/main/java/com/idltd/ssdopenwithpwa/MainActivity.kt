@@ -61,7 +61,9 @@ class MainActivity : Activity() {
 
         val encoded = Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
         val targetUrl = "${dest.url.trimEnd('/')}/?${dest.param}=$encoded"
-        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)))
+        val launchIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl))
+        dest.browser?.let { launchIntent.setPackage(it) }
+        startActivity(launchIntent)
     }
 
     private fun resolveFilename(uri: Uri): String? {

@@ -1,8 +1,10 @@
 package com.idltd.ssdopenwithpwa
 
 import android.app.AlertDialog
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
-import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
@@ -55,7 +57,7 @@ class ConfigActivity : AppCompatActivity() {
         ).also { it.topMargin = 16 })
 
         val hint = TextView(this).apply {
-            text = "Bundled routes (.ssd → SSD PWA) are always active.\nUser routes here override or extend them.\nLong-press a route to delete."
+            text = "Long-press a route to delete."
             textSize = 11f
             setPadding(0, 12, 0, 0)
         }
@@ -64,8 +66,20 @@ class ConfigActivity : AppCompatActivity() {
         setContentView(root)
     }
 
+    private fun getInstalledBrowsers(): List<Pair<String, String?>> {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("http://"))
+        val infos = packageManager.queryIntentActivities(intent, PackageManager.MATCH_ALL)
+        val browsers = infos
+            .filter { it.activityInfo.packageName != packageName }
+            .map { it.loadLabel(packageManager).toString() to it.activityInfo.packageName }
+            .distinctBy { it.second }
+            .sortedBy { it.first }
+        return listOf("Default browser" to null) + browsers
+    }
+
     private fun showEditDialog(position: Int?) {
         val existing = position?.let { userRoutes[it] }
+        val browsers = getInstalledBrowsers()
 
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -83,10 +97,19 @@ class ConfigActivity : AppCompatActivity() {
                         android.text.InputType.TYPE_TEXT_VARIATION_URI
         }
 
+        val browserSpinner = Spinner(this)
+        val browserLabels = browsers.map { it.first }
+        browserSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, browserLabels)
+        val existingPkg = existing?.destination?.browser
+        val selectedIndex = browsers.indexOfFirst { it.second == existingPkg }.takeIf { it >= 0 } ?: 0
+        browserSpinner.setSelection(selectedIndex)
+
         layout.addView(label("Extension"))
         layout.addView(extInput)
         layout.addView(label("PWA URL"))
         layout.addView(urlInput)
+        layout.addView(label("Open with browser"))
+        layout.addView(browserSpinner)
 
         AlertDialog.Builder(this)
             .setTitle(if (existing == null) "Add route" else "Edit route")
@@ -100,10 +123,11 @@ class ConfigActivity : AppCompatActivity() {
                     Toast.makeText(this, "Extension and URL are required", Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
+                val selectedBrowser = browsers[browserSpinner.selectedItemPosition].second
                 val route = Route(
-                    extensions   = listOf(ext),
-                    mimeTypes    = listOf("application/octet-stream"),
-                    destination  = Destination(type = "url_param", url = url, param = "ssd")
+                    extensions  = listOf(ext),
+                    mimeTypes   = listOf("application/octet-stream"),
+                    destination = Destination(type = "url_param", url = url, param = "ssd", browser = selectedBrowser)
                 )
                 if (position != null) userRoutes[position] = route else userRoutes.add(route)
                 save()
@@ -157,6 +181,20 @@ class ConfigActivity : AppCompatActivity() {
             }
             row.addView(ext)
             row.addView(url)
+            val browserPkg = route.destination.browser
+            if (browserPkg != null) {
+                val browserLabel = try {
+                    packageManager.getApplicationLabel(
+                        packageManager.getApplicationInfo(browserPkg, 0)
+                    ).toString()
+                } catch (e: Exception) { browserPkg }
+                val browserView = TextView(this@ConfigActivity).apply {
+                    text = "via $browserLabel"
+                    textSize = 11f
+                    setTextColor(android.graphics.Color.GRAY)
+                }
+                row.addView(browserView)
+            }
             return row
         }
     }
